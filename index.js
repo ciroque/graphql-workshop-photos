@@ -1,97 +1,50 @@
 const { ApolloServer } = require('apollo-server');
-const { MongoClient } = require('mongodb');
-
-require('dotenv').config();
-
+const songs = [
+  {id: "1", title: "Tom Sawyer", numberOne: true},
+  {id: "2", title: "Fly By Night", numberOne: false},
+  {id: "3", title: "Limelight", numberOne: true},
+  {id: "4", title: "Enough", numberOne: true},
+  {id: "5", title: "The Curse", numberOne: true},
+  {id: "6", title: "Wheel in the sky", numberOne: true},
+  {id: "7", title: "Do You Recall", numberOne: true}
+];
+const performers = [
+  {id: 1, name: "Rush"},
+  {id: 2, name: "Disturbed"},
+  {id: 3, name: "Journey"}
+];
+const performerType = [
+  "BAND",
+  "ARTIST"
+];
 const typeDefs = `
-  type Photo {
+  type Performer {
     id: ID!
     name: String!
-    description: String
-    category: PhotoCategory!
-    url: String!
-    type: String!
-    postedBy: String!
   }
-  type User {
-    githubLogin: ID!
-    name: String!
-    postedPhotos: [Photo!]!
-  }
-  enum PhotoCategory {
-    LANDSCAPE
-    PORTRAIT
-  }
-  type Mutation {
-    postPhoto(name: String!, description: String): Photo! 
-    postUser(name: String!): User! 
+  type Song {
+    id: ID!
+    title: String!
+    numberOne: Boolean
   }
   type Query {
-    totalPhotos: Int!
-    allPhotos: [Photo!]!
-    totalUsers: Int!
-    allUsers: [User!]!
-    aPhoto(id: ID!): Photo!
+    allSongs: [Song!]!,
+    song(title: String): Song!,
+    allPerformers: [Performer!]!,
+    performer(name: String!): Performer!
   }
 `;
-
-const DEFAULT_IMAGE_TYPE = 'jpg';
-const photos = []; // just for now
 const resolvers = {
   Query: {
-    totalPhotos: (parent, args, {photos}) => photos.countDocuments(),
-    allPhotos: (parent, args, {photos}) => photos.find().toArray(),
-    totalUsers: (parent, args, {users}) => users.countDocuments(),
-    allUsers: (parent, args, {users}) => users.find().toArray(),
-    aPhoto: (parent, {id}, {photos}) => photos.findOne({id: id})
-  },
-  Mutation: {
-    postPhoto: async (parent, args, {photos}) => {
-      const newPhoto = {...args};
-      const { insertedId } = await photos.insertOne(newPhoto);
-      newPhoto.id = insertedId.toString();
-      return newPhoto;
-    },
-    postUser: async (parent, args, {users}) => {
-      const newUser = {...args};
-      const { insertedId } = await users.insertOne(newUser);
-      newUser.id = insertedId.toString();
-      return newUser;
-    }
-  },
-  Photo: {
-    id: (parent, {id}, {photos}) => parent.id || parent._id.toString(),
-    url: parent => `/img/${parent._id}.${parent.type || DEFAULT_IMAGE_TYPE}`,
-    type: (parent, {type}, {photos}) => type || "jpg",
-    category: (parent, {category}, {photos}) => category || PhotoCategory.LANDSCAPE,
-    postedBy: (parent, args, {users}) => users.findOne({githubLogin: parent._id}) || {}
-  },
-  User: {
-    postedPhotos: (parent, args, {photos}) => photos.find({userID: parent.githubLogin}).toArray()
+    allSongs: () => songs,
+    allPerformers: () => performers,
+    song: (parent, {title}) => songs.find((song) => song.title === title),
+    performer: (parent, {name}) => performers.find((p) => p.name === name)
   }
 };
+const server = new ApolloServer({
+  typeDefs,
+  resolvers
+});
 
-console.warn(`
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-  DATABASE HOST: ${process.env.DB_HOST}
-  POTATO: ${process.env.POTATO}
-  
-  photos: ${JSON.stringify(photos)}
-`);
-
-const start = async () => {
-  const client = await MongoClient.connect(process.env.DB_HOST, {useNewUrlParser: true});
-  const db = client.db();
-  const server = new ApolloServer({
-    typeDefs,
-    resolvers,
-    context: {
-      photos: db.collection('photos'),
-      users: db.collection('users')
-    }
-  });
-
-  server.listen().then(console.log);
-};
-
-start();
+server.listen().then(console.log);
